@@ -1,4 +1,5 @@
 #!/usr/bin/env fish
+#
 #   ><(((º>   S E R V E R F I S H
 #   Keep your local servers running and back them up to MEGA — automatically.
 #
@@ -12,12 +13,12 @@
 #  Run  fish serverfish.fish help  for every command.
 #
 #  Requirements: fish (3.0+), rclone (for MEGA backups) — plus whatever your
-#  servers need (node, python, …).
-
+#  servers need (node, python, …). xdd
 
 set -g SF_VERSION 1.0.0
 
-# WHERE SERVERFISH KEEPS ITS DATA
+
+# The data is here
 if set -q SERVERFISH_HOME
     set -g SF_HOME $SERVERFISH_HOME
 else if set -q XDG_CONFIG_HOME
@@ -32,7 +33,9 @@ set -g SF_PIDS     $SF_HOME/pids
 mkdir -p $SF_HOME $SF_LOGS $SF_PIDS
 
 
-# Outputs
+
+#  Output helpers
+
 function _banner
     echo
     set_color -o cyan;  echo -n "   ><(((º>"; set_color normal
@@ -66,7 +69,8 @@ end
 
 
 
-#  SETTINGS
+#  Settings
+
 #  remote       rclone remote that points to MEGA              (default: mega)
 #  folder       top-level folder in MEGA                       (default: ServerFish)
 #  mode         mirror  = live copy of the server folder + old versions kept
@@ -110,7 +114,7 @@ end
 
 
 
-# Server registry  (servers.tsv)
+#  Server registry  (servers.tsv)
 
 function _srv_names
     test -f $SF_SERVERS; and cut -f1 $SF_SERVERS
@@ -191,7 +195,7 @@ function _native_path --argument-names p
     end
 end
 
-# Guess how to start a project from its files
+# ServerFisj guesses how to start the servers from its files (ServerFish is a very good gambler xd)
 function _detect_cmd --argument-names dir
     if test -f $dir/package.json
         if string match -qr '"start"\s*:' -- (cat $dir/package.json)
@@ -208,7 +212,7 @@ function _detect_cmd --argument-names dir
     return 1
 end
 
-
+# Pick the servers a command should act on (all, or the names given)
 function _resolve_targets
     if test (count $argv) -eq 0
         _srv_names
@@ -236,13 +240,13 @@ end
 
 
 
-# Process controll
-
+#  Process controll
 
 function _proc_start --argument-names pid
     ps -p $pid -o lstart= 2>/dev/null | string trim
 end
 
+# Running = pid alive AND same start time (protects against reused PIDs after reboot)
 function _is_running --argument-names name
     set -l pidfile $SF_PIDS/(_slug $name).pid
     test -f $pidfile; or return 1
@@ -370,8 +374,7 @@ function cmd_logs
 end
 
 
-
-# Managing the server list
+#  Managing the server list (ServerFish is a manager too xd)
 
 function cmd_add
     argparse 'c/cmd=' 'n/no-backup' -- $argv; or return 1
@@ -504,9 +507,7 @@ function cmd_list
 end
 
 
-
-# Beckup
-
+#  MEGA backup
 
 function _wait_for_network
     set -l waited 0
@@ -522,10 +523,32 @@ function _wait_for_network
     return 1
 end
 
+# The rclone in Ubuntu and Debian's package manager is built WITHOUT the MEGA backend.
+function _rclone_has_mega
+    rclone help backends 2>/dev/null | string match -qr '^\s+mega\s'
+end
+
+function _rclone_mega_missing
+    _fail "Your rclone was built without MEGA support."
+    _info "This is typical for the Ubuntu/Debian package (apt install rclone)."
+    _info "Replace it with the official build:"
+    echo
+    set_color -o white
+    echo "  sudo apt remove rclone"
+    echo "  curl https://rclone.org/install.sh | sudo bash"
+    set_color normal
+    echo
+    _info "Then open a new terminal and run:  fish serverfish.fish setup"
+end
+
 function _backup_ready
     if not command -q rclone
         _fail "rclone is not installed — get it at https://rclone.org/install/"
         _info "Then run:  fish serverfish.fish setup"
+        return 1
+    end
+    if not _rclone_has_mega
+        _rclone_mega_missing
         return 1
     end
     if not rclone listremotes 2>/dev/null | string match -q "$CFG_remote:"
@@ -645,9 +668,7 @@ function cmd_backup
 end
 
 
-
-# Setup, config, autostart xdd
-
+#  Setup, config and autostart
 
 function cmd_setup
     _section "Setup"
@@ -657,6 +678,11 @@ function cmd_setup
     else
         _fail "rclone is not installed."
         _info "Install it from https://rclone.org/install/ and run setup again."
+        return 1
+    end
+
+    if not _rclone_has_mega
+        _rclone_mega_missing
         return 1
     end
 
@@ -676,21 +702,25 @@ function cmd_setup
         if test -z "$email" -o -z "$pass"
             _fail "E-mail and password are required (or run:  rclone config)"; return 1
         end
-        if rclone config create $CFG_remote mega user $email pass $pass --obscure >/dev/null 2>&1
+        set -l cerr (rclone config create $CFG_remote mega user $email pass $pass --obscure 2>&1)
+        if test $status -eq 0
             _ok "Remote \"$CFG_remote\" created"
         else
-            _fail "Could not create the remote."
-            _info "Use the interactive tool instead:  rclone config  (type: mega)"
-            _info "Accounts with 2-factor login must be set up that way."
+            _fail "Could not create the remote. rclone said:"
+            printf '    %s\n' (printf '%s\n' $cerr | grep -v '^$' | tail -n 3)
+            _info "You can also set it up by hand:  rclone config  (type: mega)"
             return 1
         end
     end
 
     _info "Testing connection…"
-    if rclone lsd "$CFG_remote:" >/dev/null 2>&1
+    set -l terr (rclone lsd "$CFG_remote:" 2>&1)
+    if test $status -eq 0
         _ok "Connected to MEGA"
     else
-        _warn "Could not reach MEGA — check your login with:  rclone config"
+        _warn "Could not log in to MEGA. rclone said:"
+        printf '    %s\n' (printf '%s\n' $terr | grep -v '^$' | tail -n 2)
+        _info "Check the e-mail and password, or set the remote up by hand:  rclone config"
     end
 
     _save_settings
@@ -822,8 +852,7 @@ function cmd_help
 end
 
 
-
-# Main
+#  Main
 
 _load_settings
 _banner
