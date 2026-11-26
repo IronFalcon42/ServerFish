@@ -9,7 +9,7 @@ Keep any number of local servers running and back them up to your MEGA account, 
 ## Requirements
 
 - [fish shell](https://fishshell.com) 3.0+
-- [rclone](https://rclone.org/install/) (used for MEGA)
+- [rclone](https://rclone.org/install/) (used for MEGA), installed from rclone.org. The `rclone` package in Ubuntu/Debian is built without MEGA support and will not work.
 - Whatever your servers need (node, python, …)
 
 On Windows, run fish through WSL or MSYS2. Windows paths like `F:\Sites\shop` are converted automatically.
