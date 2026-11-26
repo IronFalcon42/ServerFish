@@ -15,23 +15,6 @@
 #  servers need (node, python, …).
 
 
-
-# Dear programmer!
-# When I wrote this code, only God and
-# I knew how it worked.
-# Now only God knows it!
-#
-# Therefore, if you are trying to optimise
-# this routine and it fails (most surely),
-# please increse this counter as a
-# warning for the next person:
-#
-# Total wasted hours here = 11
-
-
-
-
-
 set -g SF_VERSION 1.0.0
 
 # WHERE SERVERFISH KEEPS ITS DATA
